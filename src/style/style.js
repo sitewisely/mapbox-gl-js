@@ -148,8 +148,6 @@ class Style extends Evented {
                 }
             }
         });
-
-        this._currentPlacementIndex = 0;
     }
 
     loadURL(url: string, options: {
