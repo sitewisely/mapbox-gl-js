@@ -1564,8 +1564,6 @@ class Map extends Camera {
             this.style._updateSources(this.transform);
         }
 
-        this.painter.prepare(this.style);
-
         let pendingCollisionDetection = false;
         let skippedPlacement = true;
         if (this.style &&
