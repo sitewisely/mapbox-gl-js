@@ -13,6 +13,7 @@
 
 <body>
 <div id='map'></div>
+<div id='box' style="width: 100px; height: 100px; position: fixed; left: calc(49vw - 50px); top: calc(50vh - 50px); border: 1px solid black"></div>
 
 <script src='/dist/mapbox-gl-dev.js'></script>
 <script src='/debug/access_token_generated.js'></script>
@@ -22,7 +23,11 @@ var map = window.map = new mapboxgl.Map({
     container: 'map',
     zoom: 2,
     center: [0, 0],
-    style: 'mapbox://styles/mapbox/dark-v9',
+    style: {
+        version: 8,
+        layers: [],
+        sources: {}
+    },
     hash: false
 });
 
@@ -33,7 +38,14 @@ map.on('load', function() {
 
     map.addSource('heatmap', {
         "type": "geojson",
-        "data": "../test/integration/data/places.geojson"
+        "data": {
+            type: "Feature",
+            properties: {},
+            geometry: {
+                type: "Point",
+                coordinates: [0, 0]
+            }
+        }
     });
 
     map.addLayer({
@@ -43,13 +55,13 @@ map.on('load', function() {
         "paint": {
             "heatmap-radius": 50,
             "heatmap-weight": {
-                "stops": [[0, 0.5], [4, 2]]
+                "stops": [[0, 1], [4, 1]]
             },
-            "heatmap-intensity": 0.9,
+            "heatmap-intensity": 10,
             "heatmap-color": {
                 "stops": [
-                    [0, "rgba(0, 0, 255, 0)"],
-                    [0.1, "royalblue"],
+                    [0, "red"],
+                    [0.01, "black"],
                     [0.3, "cyan"],
                     [0.5, "lime"],
                     [0.7, "yellow"],
