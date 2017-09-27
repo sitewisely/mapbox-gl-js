@@ -2,18 +2,31 @@
 
 const browser = require('../util/browser');
 const CollisionIndex = require('../symbol/collision_index');
+const TileCoord = require('../source/tile_coord');
 
 import type Transform from '../geo/transform';
 import type StyleLayer from './style_layer';
 import type SourceCache from '../source/source_cache';
 
+function compareTileCoords(a: number, b: number) {
+    const aCoord = TileCoord.fromID(a);
+    const bCoord = TileCoord.fromID(b);
+    if (aCoord.isLessThan(bCoord)) {
+        return -1;
+    } else if (bCoord.isLessThan(aCoord)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 class LayerPlacement {
     _currentTileIndex: number;
     _tileIDs: Array<number>;
 
-    constructor(sourceCache) {
+    constructor(tileIDs: Array<number>) {
         this._currentTileIndex = 0;
-        this._tileIDs = sourceCache.getRenderableIds();
+        this._tileIDs = tileIDs;
     }
 
     continuePlacement(sourceCache, collisionIndex, showCollisionBoxes: boolean, layer, shouldPausePlacement) {
@@ -38,6 +51,7 @@ class Placement {
     _delayUntil: number;
     _collisionFadeTimes: any;
     _inProgressLayer: ?LayerPlacement;
+    _sourceCacheTileIDs: {[string]: Array<number>};
 
     constructor(transform: Transform, order: Array<string>,
             forceFullPlacement: boolean, showCollisionBoxes: boolean, fadeDuration: number,
@@ -47,6 +61,7 @@ class Placement {
         this._currentPlacementIndex = order.length - 1;
         this._forceFullPlacement = forceFullPlacement;
         this._showCollisionBoxes = showCollisionBoxes;
+        this._sourceCacheTileIDs = {};
 
         if (forceFullPlacement || !previousPlacement) {
             this._delayUntil = browser.now();
@@ -85,7 +100,10 @@ class Placement {
                 const sourceCache = sourceCaches[layer.source];
 
                 if (!this._inProgressLayer) {
-                    this._inProgressLayer = new LayerPlacement(sourceCache);
+                    if (!this._sourceCacheTileIDs[layer.source]) {
+                        this._sourceCacheTileIDs[layer.source] = sourceCache.getRenderableIds().sort(compareTileCoords);
+                    }
+                    this._inProgressLayer = new LayerPlacement(this._sourceCacheTileIDs[layer.source]);
                 }
 
                 const pausePlacement = this._inProgressLayer.continuePlacement(sourceCache, this.collisionIndex, this._showCollisionBoxes, layer, shouldPausePlacement);
