@@ -18,12 +18,6 @@ module.exports = drawSymbols;
 function drawSymbols(painter: Painter, sourceCache: SourceCache, layer: SymbolStyleLayer, coords: Array<TileCoord>) {
     if (painter.renderPass !== 'translucent') return;
 
-    const drawAcrossEdges =
-        !layer.layout['text-allow-overlap'] &&
-        !layer.layout['icon-allow-overlap'] &&
-        !layer.layout['text-ignore-placement'] &&
-        !layer.layout['icon-ignore-placement'];
-
     const gl = painter.gl;
 
     // Disable the stencil test so that labels aren't clipped to tile boundaries.
