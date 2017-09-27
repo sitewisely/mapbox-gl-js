@@ -27,15 +27,7 @@ function drawSymbols(painter: Painter, sourceCache: SourceCache, layer: SymbolSt
     const gl = painter.gl;
 
     // Disable the stencil test so that labels aren't clipped to tile boundaries.
-    //
-    // Layers with features that may be drawn overlapping aren't clipped. These
-    // layers are sorted in the y direction, and to draw the correct ordering near
-    // tile edges the icons are included in both tiles and clipped when drawing.
-    if (true || drawAcrossEdges) {
-        gl.disable(gl.STENCIL_TEST);
-    } else {
-        gl.enable(gl.STENCIL_TEST);
-    }
+    gl.disable(gl.STENCIL_TEST);
 
     painter.setDepthSublayer(0);
     painter.depthMask(false);
