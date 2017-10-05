@@ -21,7 +21,7 @@ const QueryFeatures = require('../source/query_features');
 const SourceCache = require('../source/source_cache');
 const GeoJSONSource = require('../source/geojson_source');
 const styleSpec = require('../style-spec/reference/latest');
-const MapboxGLFunction = require('../style-spec/function');
+const {isExpression} = require('../style-spec/expression');
 const getWorkerPool = require('../util/global_worker_pool');
 const deref = require('../style-spec/deref');
 const diff = require('../style-spec/diff');
@@ -192,17 +192,22 @@ class Style extends Evented {
             this.addSource(id, json.sources[id], {validate: false});
         }
 
-        loadSprite(json.sprite, this.map._transformRequest, (err, images) => {
-            if (err) {
-                this.fire('error', err);
-            } else if (images) {
-                for (const id in images) {
-                    this.imageManager.addImage(id, images[id]);
+        if (json.sprite) {
+            loadSprite(json.sprite, this.map._transformRequest, (err, images) => {
+                if (err) {
+                    this.fire('error', err);
+                } else if (images) {
+                    for (const id in images) {
+                        this.imageManager.addImage(id, images[id]);
+                    }
                 }
-            }
 
+                this.imageManager.setLoaded(true);
+                this.fire('data', {dataType: 'style'});
+            });
+        } else {
             this.imageManager.setLoaded(true);
-        });
+        }
 
         this.glyphManager.setURL(json.glyphs);
 
@@ -785,7 +790,7 @@ class Style extends Evented {
 
         const isFeatureConstant = !(
             value &&
-            MapboxGLFunction.isFunctionDefinition(value) &&
+            isExpression(value) &&
             value.property !== '$zoom' &&
             value.property !== undefined
         );

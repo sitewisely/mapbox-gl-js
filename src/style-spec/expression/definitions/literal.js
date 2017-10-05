@@ -4,10 +4,8 @@ const { Color, isValue, typeOf } = require('../values');
 
 import type { Type } from '../types';
 import type { Value }  from '../values';
-import type { Expression, ParsingContext, CompilationContext }  from '../expression';
-
-const u2028 = /\u2028/g;
-const u2029 = /\u2029/g;
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
 
 class Literal implements Expression {
     key: string;
@@ -45,31 +43,8 @@ class Literal implements Expression {
         return new Literal(context.key, type, value);
     }
 
-    compile(ctx: CompilationContext) {
-        let value;
-        if (this.type.kind === 'Color') {
-            value = `(new $this.Color(${(this.value: any).join(', ')}))`;
-        } else {
-            value = Literal.compile(this.value);
-        }
-
-        if (typeof this.value === 'object' && this.value !== null) {
-            return ctx.addVariable(value);
-        } else {
-            return value;
-        }
-    }
-
-    static compile(value: Value) {
-        let literal = JSON.stringify(value);
-        // http://timelessrepo.com/json-isnt-a-javascript-subset
-        if (literal.indexOf('\u2028') >= 0) {
-            literal = literal.replace(u2028, '\\u2028');
-        }
-        if (literal.indexOf('\u2029') >= 0) {
-            literal = literal.replace(u2029, '\\u2029');
-        }
-        return literal;
+    evaluate() {
+        return this.value;
     }
 
     serialize() {

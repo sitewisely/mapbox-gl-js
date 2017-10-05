@@ -1,9 +1,10 @@
 // @flow
 
 const assert = require('assert');
-const parseExpression = require('../parse_expression');
 
-import type { Expression, ParsingContext, CompilationContext } from '../expression';
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext from '../evaluation_context';
 import type { Type } from '../types';
 
 class Coalesce implements Expression {
@@ -27,8 +28,7 @@ class Coalesce implements Expression {
         }
         const parsedArgs = [];
         for (const arg of args.slice(1)) {
-            const argContext = context.concat(1 + parsedArgs.length, outputType);
-            const parsed = parseExpression(arg, argContext);
+            const parsed = context.parse(arg, 1 + parsedArgs.length, outputType);
             if (!parsed) return null;
             outputType = outputType || parsed.type;
             parsedArgs.push(parsed);
@@ -37,13 +37,13 @@ class Coalesce implements Expression {
         return new Coalesce(context.key, (outputType: any), parsedArgs);
     }
 
-    compile(ctx: CompilationContext) {
-        const compiledArgs = [];
+    evaluate(ctx: EvaluationContext) {
+        let result = null;
         for (const arg of this.args) {
-            compiledArgs.push(ctx.addExpression(arg.compile(ctx)));
+            result = arg.evaluate(ctx);
+            if (result !== null) break;
         }
-        const args = ctx.addVariable(`[${compiledArgs.join(',')}]`);
-        return `$this.coalesce(${args})`;
+        return result;
     }
 
     serialize() {

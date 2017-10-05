@@ -5,7 +5,7 @@ const FillBucket = require('../../data/bucket/fill_bucket');
 const {multiPolygonIntersectsMultiPolygon} = require('../../util/intersection_tests');
 const {translateDistance, translate} = require('../query_utils');
 
-import type {Feature} from '../../style-spec/function';
+import type {Feature} from '../../style-spec/expression';
 import type {GlobalProperties} from '../style_layer';
 import type {BucketParameters} from '../../data/bucket';
 import type Point from '@mapbox/point-geometry';
@@ -37,14 +37,6 @@ class FillStyleLayer extends StyleLayer {
         }
 
         return super.getPaintValue(name, globalProperties, feature);
-    }
-
-    getPaintValueStopZoomLevels(name: string) {
-        if (name === 'fill-outline-color' && this.getPaintProperty('fill-outline-color') === undefined) {
-            return super.getPaintValueStopZoomLevels('fill-color');
-        } else {
-            return super.getPaintValueStopZoomLevels(name);
-        }
     }
 
     getPaintInterpolationFactor(name: string, ...args: *) {

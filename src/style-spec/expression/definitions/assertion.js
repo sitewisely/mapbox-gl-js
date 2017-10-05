@@ -1,7 +1,6 @@
 // @flow
 
 const assert = require('assert');
-const parseExpression = require('../parse_expression');
 const {
     ObjectType,
     ValueType,
@@ -10,7 +9,13 @@ const {
     BooleanType
 } = require('../types');
 
-import type { Expression, ParsingContext, CompilationContext } from '../expression';
+const RuntimeError = require('../runtime_error');
+const {checkSubtype, toString} = require('../types');
+const {typeOf} = require('../values');
+
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext from '../evaluation_context';
 import type { Type } from '../types';
 
 const types = {
@@ -42,7 +47,7 @@ class Assertion implements Expression {
 
         const parsed = [];
         for (let i = 1; i < args.length; i++) {
-            const input = parseExpression(args[i], context.concat(i, ValueType));
+            const input = context.parse(args[i], i, ValueType);
             if (!input) return null;
             parsed.push(input);
         }
@@ -50,14 +55,19 @@ class Assertion implements Expression {
         return new Assertion(context.key, type, parsed);
     }
 
-    compile(ctx: CompilationContext) {
-        const jsType = JSON.stringify(this.type.kind.toLowerCase());
-        const args = [];
-        for (const input of this.args) {
-            args.push(ctx.addExpression(input.compile(ctx)));
+    evaluate(ctx: EvaluationContext) {
+        for (let i = 0; i < this.args.length; i++) {
+            const value = this.args[i].evaluate(ctx);
+            const error = checkSubtype(this.type, typeOf(value));
+            if (!error) {
+                return value;
+            } else if (i === this.args.length - 1) {
+                throw new RuntimeError(`Expected value to be of type ${toString(this.type)}, but found ${toString(typeOf(value))} instead.`);
+            }
         }
-        const inputsVar = ctx.addVariable(`[${args.join(',')}]`);
-        return `$this.asJSType(${jsType}, ${inputsVar})`;
+
+        assert(false);
+        return null;
     }
 
     serialize() {

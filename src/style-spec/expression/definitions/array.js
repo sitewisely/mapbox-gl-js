@@ -1,16 +1,21 @@
 // @flow
 
-const parseExpression = require('../parse_expression');
 const {
     toString,
     array,
     ValueType,
     StringType,
     NumberType,
-    BooleanType
+    BooleanType,
+    checkSubtype
 } = require('../types');
 
-import type { Expression, ParsingContext, CompilationContext } from '../expression';
+const {typeOf} = require('../values');
+const RuntimeError = require('../runtime_error');
+
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext from '../evaluation_context';
 import type { ArrayType } from '../types';
 
 const types = {
@@ -58,14 +63,19 @@ class ArrayAssertion implements Expression {
 
         const type = array(itemType, N);
 
-        const input = parseExpression(args[args.length - 1], context.concat(args.length - 1, ValueType));
+        const input = context.parse(args[args.length - 1], args.length - 1, ValueType);
         if (!input) return null;
 
         return new ArrayAssertion(context.key, type, input);
     }
 
-    compile(ctx: CompilationContext) {
-        return `$this.asArray(${ctx.compileAndCache(this.input)}, ${JSON.stringify(this.type)})`;
+    evaluate(ctx: EvaluationContext) {
+        const value = this.input.evaluate(ctx);
+        const error = checkSubtype(this.type, typeOf(value));
+        if (error) {
+            throw new RuntimeError(`Expected value to be of type ${toString(this.type)}, but found ${toString(typeOf(value))} instead.`);
+        }
+        return value;
     }
 
     serialize() {

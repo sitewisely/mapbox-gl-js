@@ -1,14 +1,19 @@
 // @flow
 
-const parseExpression = require('../parse_expression');
 const {
     array,
     BooleanType,
     ValueType
 } = require('../types');
 
-import type { Expression, ParsingContext, CompilationContext } from '../expression';
+const { typeOf } = require('../values');
+const RuntimeError = require('../runtime_error');
+
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext from '../evaluation_context';
 import type { Type, ArrayType } from '../types';
+import type { Value } from '../values';
 
 class Contains implements Expression {
     key: string;
@@ -27,11 +32,11 @@ class Contains implements Expression {
         if (args.length !== 3)
             return context.error(`Expected 2 arguments, but found ${args.length - 1} instead.`);
 
-        const arrayExpr = parseExpression(args[2], context.concat(2, array(ValueType)));
+        const arrayExpr = context.parse(args[2], 2, array(ValueType));
         if (!arrayExpr) return null;
 
         const t: ArrayType = (arrayExpr.type: any);
-        const value = parseExpression(args[1], context.concat(1, t.itemType));
+        const value = context.parse(args[1], 1, t.itemType);
         if (!value) return null;
 
         const itemType = value.type.kind;
@@ -42,8 +47,14 @@ class Contains implements Expression {
         return new Contains(context.key, value, arrayExpr);
     }
 
-    compile(ctx: CompilationContext) {
-        return `$this.contains(${ctx.compileAndCache(this.value)}, ${ctx.compileAndCache(this.array)})`;
+    evaluate(ctx: EvaluationContext) {
+        const value = this.value.evaluate(ctx);
+        const type = typeOf(value).kind;
+        if (type === 'Object' || type === 'Array' || type === 'Color') {
+            throw new RuntimeError(`"contains" does not support values of type ${type}`);
+        }
+        const array = ((this.array.evaluate(ctx): any): Array<Value>);
+        return array.indexOf(value) >= 0;
     }
 
     serialize() {

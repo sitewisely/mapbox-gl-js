@@ -4,13 +4,13 @@ const StyleLayer = require('../style_layer');
 const SymbolBucket = require('../../data/bucket/symbol_bucket');
 const assert = require('assert');
 
-import type {Feature} from '../../style-spec/function';
+import type {Feature} from '../../style-spec/expression';
 import type {GlobalProperties} from '../style_layer';
 import type {BucketParameters} from '../../data/bucket';
 
 class SymbolStyleLayer extends StyleLayer {
 
-    getLayoutValue(name: string, globalProperties?: GlobalProperties, feature?: Feature) {
+    getLayoutValue(name: string, globalProperties?: GlobalProperties, feature?: Feature): any {
         const value = super.getLayoutValue(name, globalProperties, feature);
         if (value !== 'auto') {
             return value;
@@ -27,6 +27,20 @@ class SymbolStyleLayer extends StyleLayer {
         default:
             return value;
         }
+    }
+
+    getLayoutDeclaration(name: string) {
+        return this._layoutDeclarations[name];
+    }
+
+    isLayoutValueFeatureConstant(name: string) {
+        const declaration = this._layoutDeclarations[name];
+        return !declaration || declaration.expression.isFeatureConstant;
+    }
+
+    isLayoutValueZoomConstant(name: string) {
+        const declaration = this._layoutDeclarations[name];
+        return !declaration || declaration.expression.isZoomConstant;
     }
 
     createBucket(parameters: BucketParameters) {

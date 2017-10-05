@@ -7,7 +7,7 @@ const VertexBuffer = require('../gl/vertex_buffer');
 import type StyleLayer from '../style/style_layer';
 import type {ViewType, StructArray, SerializedStructArray, StructArrayTypeParameters} from '../util/struct_array';
 import type Program from '../render/program';
-import type {Feature} from '../style-spec/function';
+import type {Feature} from '../style-spec/expression';
 
 type LayoutAttribute = {
     name: string,
@@ -362,7 +362,7 @@ class ProgramConfiguration {
 class ProgramConfigurationSet {
     programConfigurations: {[string]: ProgramConfiguration};
 
-    constructor(programInterface: ProgramInterface, layers: Array<StyleLayer>, zoom: number, arrays?: {+[string]: ?SerializedProgramConfiguration}) {
+    constructor(programInterface: ProgramInterface, layers: $ReadOnlyArray<StyleLayer>, zoom: number, arrays?: {+[string]: ?SerializedProgramConfiguration}) {
         this.programConfigurations = {};
         if (arrays) {
             for (const layer of layers) {

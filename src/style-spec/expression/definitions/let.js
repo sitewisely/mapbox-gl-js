@@ -1,8 +1,9 @@
 // @flow
 
-const parseExpression = require('../parse_expression');
 import type { Type } from '../types';
-import type { Expression, ParsingContext, CompilationContext }  from '../expression';
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext  from '../evaluation_context';
 
 class Let implements Expression {
     key: string;
@@ -17,9 +18,9 @@ class Let implements Expression {
         this.result = result;
     }
 
-    compile(ctx: CompilationContext) {
+    evaluate(ctx: EvaluationContext) {
         ctx.pushScope(this.bindings);
-        const result = this.result.compile(ctx);
+        const result = this.result.evaluate(ctx);
         ctx.popScope();
         return result;
     }
@@ -56,14 +57,13 @@ class Let implements Expression {
                 return context.error(`Variable names must contain only alphanumeric characters or '_'.`, i);
             }
 
-            const value = parseExpression(args[i + 1], context.concat(i + 1));
+            const value = context.parse(args[i + 1], i + 1);
             if (!value) return null;
 
             bindings.push([name, value]);
         }
 
-        const resultContext = context.concat(args.length - 1, undefined, bindings);
-        const result = parseExpression(args[args.length - 1], resultContext);
+        const result = context.parse(args[args.length - 1], args.length - 1, undefined, bindings);
         if (!result) return null;
 
         return new Let(context.key, bindings, result);

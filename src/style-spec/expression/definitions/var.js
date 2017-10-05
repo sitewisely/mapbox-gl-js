@@ -1,7 +1,9 @@
 // @flow
 
 import type { Type } from '../types';
-import type { Expression, ParsingContext, CompilationContext }  from '../expression';
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext  from '../evaluation_context';
 
 class Var implements Expression {
     key: string;
@@ -26,9 +28,8 @@ class Var implements Expression {
         return new Var(context.key, name, context.scope.get(name).type);
     }
 
-    compile(ctx: CompilationContext) {
-        const expr = ctx.scope.get(this.name);
-        return expr.compile(ctx);
+    evaluate(ctx: EvaluationContext) {
+        return ctx.scope.get(this.name).evaluate(ctx);
     }
 
     serialize() {
@@ -37,6 +38,5 @@ class Var implements Expression {
 
     eachChild() {}
 }
-
 
 module.exports = Var;

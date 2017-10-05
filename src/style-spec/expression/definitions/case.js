@@ -1,10 +1,11 @@
 // @flow
 
 const assert = require('assert');
-const parseExpression = require('../parse_expression');
 const { BooleanType } = require('../types');
 
-import type { Expression, ParsingContext, CompilationContext } from '../expression';
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext from '../evaluation_context';
 import type { Type } from '../types';
 
 type Branches = Array<[Expression, Expression]>;
@@ -36,10 +37,10 @@ class Case implements Expression {
 
         const branches = [];
         for (let i = 1; i < args.length - 1; i += 2) {
-            const test = parseExpression(args[i], context.concat(i, BooleanType));
+            const test = context.parse(args[i], i, BooleanType);
             if (!test) return null;
 
-            const result = parseExpression(args[i + 1], context.concat(i + 1, outputType));
+            const result = context.parse(args[i + 1], i + 1, outputType);
             if (!result) return null;
 
             branches.push([test, result]);
@@ -47,20 +48,20 @@ class Case implements Expression {
             outputType = outputType || result.type;
         }
 
-        const otherwise = parseExpression(args[args.length - 1], context.concat(args.length - 1, outputType));
+        const otherwise = context.parse(args[args.length - 1], args.length - 1, outputType);
         if (!otherwise) return null;
 
         assert(outputType);
         return new Case(context.key, (outputType: any), branches, otherwise);
     }
 
-    compile(ctx: CompilationContext) {
-        const result = [];
+    evaluate(ctx: EvaluationContext) {
         for (const [test, expression] of this.branches) {
-            result.push(`(${ctx.compileAndCache(test)}) ? (${ctx.compileAndCache(expression)})`);
+            if (test.evaluate(ctx)) {
+                return expression.evaluate(ctx);
+            }
         }
-        result.push(`(${ctx.compileAndCache(this.otherwise)})`);
-        return result.join(' : ');
+        return this.otherwise.evaluate(ctx);
     }
 
     serialize() {

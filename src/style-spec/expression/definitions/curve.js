@@ -1,13 +1,13 @@
 // @flow
 
 const UnitBezier = require('@mapbox/unitbezier');
-const {
-    toString,
-    NumberType
-} = require('../types');
-const parseExpression = require('../parse_expression');
+const interpolate = require('../../util/interpolate');
+const { toString, NumberType } = require('../types');
+const { Color } = require('../values');
 
-import type { Expression, ParsingContext, CompilationContext } from '../expression';
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext from '../evaluation_context';
 import type { Type } from '../types';
 
 export type InterpolationType =
@@ -24,14 +24,21 @@ class Curve implements Expression {
 
     interpolation: InterpolationType;
     input: Expression;
-    stops: Stops;
+    labels: Array<number>;
+    outputs: Array<Expression>;
 
     constructor(key: string, type: Type, interpolation: InterpolationType, input: Expression, stops: Stops) {
         this.key = key;
         this.type = type;
         this.interpolation = interpolation;
         this.input = input;
-        this.stops = stops;
+
+        this.labels = [];
+        this.outputs = [];
+        for (const [label, expression] of stops) {
+            this.labels.push(label);
+            this.outputs.push(expression);
+        }
     }
 
     static interpolationFactor(interpolation: InterpolationType, input: number, lower: number, upper: number) {
@@ -95,7 +102,7 @@ class Curve implements Expression {
             return context.error(`Expected an ${parity === 0 ? 'even' : 'odd'} number of arguments.`);
         }
 
-        input = parseExpression(input, context.concat(2, NumberType));
+        input = context.parse(input, 2, NumberType);
         if (!input) return null;
 
         const stops: Stops = [];
@@ -124,7 +131,7 @@ class Curve implements Expression {
                 return context.error('Input/output pairs for "curve" expressions must be arranged with input values in strictly ascending order.', labelKey);
             }
 
-            const parsed = parseExpression(value, context.concat(valueKey, outputType));
+            const parsed = context.parse(value, valueKey, outputType);
             if (!parsed) return null;
             outputType = outputType || parsed.type;
             stops.push([label, parsed]);
@@ -140,23 +147,42 @@ class Curve implements Expression {
         return new Curve(context.key, outputType, interpolation, input, stops);
     }
 
-    compile(ctx: CompilationContext) {
-        const input = ctx.compileAndCache(this.input);
+    evaluate(ctx: EvaluationContext) {
+        const labels = this.labels;
+        const outputs = this.outputs;
 
-        const labels = [];
-        const outputs = [];
-        for (const [label, expression] of this.stops) {
-            labels.push(label);
-            outputs.push(ctx.addExpression(expression.compile(ctx)));
+        if (labels.length === 1) {
+            return outputs[0].evaluate(ctx);
         }
 
-        const interpolationType = this.type.kind.toLowerCase();
+        const value = ((this.input.evaluate(ctx): any): number);
+        if (value <= labels[0]) {
+            return outputs[0].evaluate(ctx);
+        }
 
-        const labelVariable = ctx.addVariable(`[${labels.join(',')}]`);
-        const outputsVariable = ctx.addVariable(`[${outputs.join(',')}]`);
-        const interpolation = ctx.addVariable(JSON.stringify(this.interpolation));
+        const stopCount = labels.length;
+        if (value >= labels[stopCount - 1]) {
+            return outputs[stopCount - 1].evaluate(ctx);
+        }
 
-        return `$this.evaluateCurve(${input}, ${labelVariable}, ${outputsVariable}, ${interpolation}, ${JSON.stringify(interpolationType)})`;
+        const index = findStopLessThanOrEqualTo(labels, value);
+        if (this.interpolation.name === 'step') {
+            return outputs[index].evaluate(ctx);
+        }
+
+        const lower = labels[index];
+        const upper = labels[index + 1];
+        const t = Curve.interpolationFactor(this.interpolation, value, lower, upper);
+
+        const outputLower = outputs[index].evaluate(ctx);
+        const outputUpper = outputs[index + 1].evaluate(ctx);
+
+        const type = this.type.kind.toLowerCase();
+        if (type === 'color') {
+            return new Color(...interpolate.color((outputLower: any).value, (outputUpper: any).value, t));
+        }
+
+        return interpolate[type](outputLower, outputUpper, t);
     }
 
     serialize() {
@@ -169,16 +195,16 @@ class Curve implements Expression {
         }
         result.push(interp);
         result.push(this.input.serialize());
-        for (const [label, expression] of this.stops) {
-            result.push(label);
-            result.push(expression.serialize());
+        for (let i = 0; i < this.labels.length; i++) {
+            result.push(this.labels[i]);
+            result.push(this.outputs[i].serialize());
         }
         return result;
     }
 
     eachChild(fn: (Expression) => void) {
         fn(this.input);
-        for (const [ , expression] of this.stops) {
+        for (const expression of this.outputs) {
             fn(expression);
         }
     }
@@ -233,3 +259,30 @@ function exponentialInterpolation(input, base, lowerValue, upperValue) {
 }
 
 module.exports = Curve;
+
+/**
+ * Returns the index of the last stop <= input, or 0 if it doesn't exist.
+ * @private
+ */
+function findStopLessThanOrEqualTo(stops, input) {
+    const n = stops.length;
+    let lowerIndex = 0;
+    let upperIndex = n - 1;
+    let currentIndex = 0;
+    let currentValue, upperValue;
+
+    while (lowerIndex <= upperIndex) {
+        currentIndex = Math.floor((lowerIndex + upperIndex) / 2);
+        currentValue = stops[currentIndex];
+        upperValue = stops[currentIndex + 1];
+        if (input === currentValue || input > currentValue && input < upperValue) { // Search complete
+            return currentIndex;
+        } else if (currentValue < input) {
+            lowerIndex = currentIndex + 1;
+        } else if (currentValue > input) {
+            upperIndex = currentIndex - 1;
+        }
+    }
+
+    return Math.max(currentIndex - 1, 0);
+}

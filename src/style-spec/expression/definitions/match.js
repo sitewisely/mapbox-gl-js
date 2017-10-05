@@ -1,11 +1,11 @@
 // @flow
 
 const assert = require('assert');
-const parseExpression = require('../parse_expression');
 const { typeOf } = require('../values');
-const Literal = require('./literal');
 
-import type { Expression, ParsingContext, CompilationContext } from '../expression';
+import type { Expression } from '../expression';
+import type ParsingContext from '../parsing_context';
+import type EvaluationContext from '../evaluation_context';
 import type { Type } from '../types';
 
 // Map input label values to output expression index
@@ -79,41 +79,25 @@ class Match implements Expression {
                 cases[String(label)] = outputs.length;
             }
 
-            const result = parseExpression(value, context.concat(i, outputType));
+            const result = context.parse(value, i, outputType);
             if (!result) return null;
             outputType = outputType || result.type;
             outputs.push(result);
         }
 
-        const input = parseExpression(args[1], context.concat(1, inputType));
+        const input = context.parse(args[1], 1, inputType);
         if (!input) return null;
 
-        const otherwise = parseExpression(args[args.length - 1], context.concat(args.length - 1, outputType));
+        const otherwise = context.parse(args[args.length - 1], args.length - 1, outputType);
         if (!otherwise) return null;
 
         assert(inputType && outputType);
         return new Match(context.key, (inputType: any), (outputType: any), input, cases, outputs, otherwise);
     }
 
-    compile(ctx: CompilationContext) {
-        const input = ctx.compileAndCache(this.input);
-
-        const outputs = [];
-        for (const output of this.outputs) {
-            outputs.push(ctx.addExpression(output.compile(ctx)));
-        }
-
-        let lookup = '';
-        const labels = Object.keys(this.cases);
-        for (let i = 0; i < labels.length; i++) {
-            if (i > 0) lookup += ', ';
-            const label = labels[i];
-            lookup += `${Literal.compile(label)}: ${outputs[this.cases[label]]}`;
-        }
-
-        const lookupObject = ctx.addVariable(`{${lookup}}`);
-
-        return `(${lookupObject}[${input}] || ${ctx.addExpression(this.otherwise.compile(ctx))})();`;
+    evaluate(ctx: EvaluationContext) {
+        const input = (this.input.evaluate(ctx): any);
+        return (this.outputs[this.cases[input]] || this.otherwise).evaluate(ctx);
     }
 
     serialize() {

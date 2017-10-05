@@ -1,8 +1,7 @@
 const assert = require('assert');
 const extend = require('../util/extend');
 
-module.exports.function = convertFunction;
-module.exports.value = convertValue;
+module.exports = convertFunction;
 
 function convertFunction(parameters, propertySpec) {
     let expression;
@@ -74,7 +73,7 @@ function convertIdentityFunction(parameters, propertySpec, defaultExpression) {
 function convertValue(value, spec) {
     if (typeof value === 'undefined' || value === null) return null;
     if (spec.type === 'color') {
-        return ['to-color', value];
+        return value;
     } else if (spec.type === 'array') {
         return ['literal', value];
     } else {

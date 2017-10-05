@@ -1,10 +1,42 @@
 // @flow
 
+const parseColor = require('../style-spec/util/parse_color');
+const {createExpressionWithErrorHandling, getExpectedType, getDefaultValue} = require('../style-spec/expression');
 const createFunction = require('../style-spec/function');
 const util = require('../util/util');
-const Curve = require('../style-spec/function/definitions/curve');
+const Curve = require('../style-spec/expression/definitions/curve');
 
-import type {StyleFunction, Feature} from '../style-spec/function';
+import type {StyleExpression, Feature} from '../style-spec/expression';
+
+function normalizeToExpression(parameters, propertySpec): StyleExpression {
+    if (typeof parameters === 'string' && propertySpec.type === 'color') {
+        const color = parseColor(parameters);
+        return {
+            result: 'success',
+            isFeatureConstant: true,
+            isZoomConstant: true,
+            evaluate() { return color; }
+        };
+    }
+
+    if (parameters === null || typeof parameters !== 'object' || Array.isArray(parameters)) {
+        return {
+            result: 'success',
+            isFeatureConstant: true,
+            isZoomConstant: true,
+            evaluate() { return parameters; }
+        };
+    }
+
+    if (parameters.expression) {
+        return createExpressionWithErrorHandling(
+            parameters.expression,
+            getExpectedType(propertySpec),
+            getDefaultValue(propertySpec));
+    } else {
+        return createFunction(parameters, propertySpec);
+    }
+}
 
 /**
  * A style property declaration
@@ -12,38 +44,22 @@ import type {StyleFunction, Feature} from '../style-spec/function';
  */
 class StyleDeclaration {
     value: any;
-    isFunction: boolean;
-    isFeatureConstant: boolean;
-    isZoomConstant: boolean;
     json: mixed;
     minimum: number;
-    function: StyleFunction;
-    stopZoomLevels: Array<number>;
-    _zoomCurve: ?Curve;
+    expression: StyleExpression;
 
     constructor(reference: any, value: any) {
         this.value = util.clone(value);
-        this.isFunction = createFunction.isFunctionDefinition(value);
 
         // immutable representation of value. used for comparison
         this.json = JSON.stringify(this.value);
 
         this.minimum = reference.minimum;
-        this.function = createFunction(this.value, reference);
-        this.isFeatureConstant = this.function.isFeatureConstant;
-        this.isZoomConstant = this.function.isZoomConstant;
-
-        if (!this.isZoomConstant) {
-            this._zoomCurve = this.function.zoomCurve;
-            this.stopZoomLevels = [];
-            for (const stop of this.function.zoomCurve.stops) {
-                this.stopZoomLevels.push(stop[0]);
-            }
-        }
+        this.expression = normalizeToExpression(this.value, reference);
     }
 
     calculate(globalProperties: {+zoom?: number} = {}, feature?: Feature) {
-        const value = this.function(globalProperties, feature);
+        const value = this.expression.evaluate(globalProperties, feature);
         if (this.minimum !== undefined && value < this.minimum) {
             return this.minimum;
         }
@@ -53,18 +69,18 @@ class StyleDeclaration {
     /**
      * Calculate the interpolation factor for the given zoom stops and current
      * zoom level.
-     *
-     * Only valid for composite functions.
-     * @private
      */
     interpolationFactor(zoom: number, lower: number, upper: number) {
-        if (!this._zoomCurve) return 0;
-        return Curve.interpolationFactor(
-            this._zoomCurve.interpolation,
-            zoom,
-            lower,
-            upper
-        );
+        if (this.expression.isZoomConstant) {
+            return 0;
+        } else {
+            return Curve.interpolationFactor(
+                this.expression.interpolation,
+                zoom,
+                lower,
+                upper
+            );
+        }
     }
 }
 

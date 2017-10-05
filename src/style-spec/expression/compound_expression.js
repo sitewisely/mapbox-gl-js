@@ -1,38 +1,38 @@
 // @flow
 
 const { toString } = require('./types');
-const { ParsingContext } = require('./expression');
-const parseExpression = require('./parse_expression');
+const ParsingContext = require('./parsing_context');
+const EvaluationContext = require('./evaluation_context');
 const assert = require('assert');
 
-import type { Expression, CompilationContext }  from './expression';
+import type { Expression } from './expression';
 import type { Type } from './types';
 
 type Varargs = {| type: Type |};
 type Signature = Array<Type> | Varargs;
-type Compile = (ctx: CompilationContext, args: Array<Expression>) => string;
-type Definition = [Type, Signature, Compile] |
-    {|type: Type, overloads: Array<[Signature, Compile]>|};
+type Evaluate = Function;
+type Definition = [Type, Signature, Evaluate] |
+    {|type: Type, overloads: Array<[Signature, Evaluate]>|};
 
 class CompoundExpression implements Expression {
     key: string;
     name: string;
     type: Type;
-    compileFromArgs: Compile;
+    _evaluate: Evaluate;
     args: Array<Expression>;
 
     static definitions: { [string]: Definition };
 
-    constructor(key: string, name: string, type: Type, compileFromArgs: Compile, args: Array<Expression>) {
+    constructor(key: string, name: string, type: Type, evaluate: Evaluate, args: Array<Expression>) {
         this.key = key;
         this.name = name;
         this.type = type;
-        this.compileFromArgs = compileFromArgs;
+        this._evaluate = evaluate;
         this.args = args;
     }
 
-    compile(ctx: CompilationContext) {
-        return this.compileFromArgs(ctx, this.args);
+    evaluate(ctx: EvaluationContext) {
+        return this._evaluate.apply(ctx, this.args.map(arg => arg.evaluate(ctx)));
     }
 
     serialize() {
@@ -74,14 +74,14 @@ class CompoundExpression implements Expression {
                     params[i - 1] :
                     params.type;
             }
-            const parsed = parseExpression(arg, context.concat(1 + parsedArgs.length, expected));
+            const parsed = context.parse(arg, 1 + parsedArgs.length, expected);
             if (!parsed) return null;
             parsedArgs.push(parsed);
         }
 
         let signatureContext: ParsingContext = (null: any);
 
-        for (const [params, compileFromArgs] of overloads) {
+        for (const [params, evaluate] of overloads) {
             // Use a fresh context for each attempted signature so that, if
             // we eventually succeed, we haven't polluted `context.errors`.
             signatureContext = new ParsingContext(context.definitions, context.path, null, context.scope);
@@ -100,7 +100,7 @@ class CompoundExpression implements Expression {
             }
 
             if (signatureContext.errors.length === 0) {
-                return new CompoundExpression(context.key, op, type, compileFromArgs, parsedArgs);
+                return new CompoundExpression(context.key, op, type, evaluate, parsedArgs);
             }
         }
 

@@ -10,7 +10,7 @@ const Evented = require('../util/evented');
 
 import type {Bucket, BucketParameters} from '../data/bucket';
 import type Point from '@mapbox/point-geometry';
-import type {Feature} from '../style-spec/function';
+import type {Feature} from '../style-spec/expression';
 import type RenderTexture from '../render/render_texture';
 
 export type GlobalProperties = {
@@ -195,73 +195,19 @@ class StyleLayer extends Evented {
         }
     }
 
-    getPaintValueStopZoomLevels(name: string) {
-        const transition = this._paintTransitions[name];
-        if (transition) {
-            return transition.declaration.stopZoomLevels;
-        } else {
-            return [];
-        }
-    }
-
-    getLayoutValueStopZoomLevels(name: string) {
-        const declaration = this._layoutDeclarations[name];
-
-        if (declaration) {
-            return declaration.stopZoomLevels;
-        } else {
-            return [];
-        }
-    }
-
     getPaintInterpolationFactor(name: string, input: number, lower: number, upper: number) {
         const transition = this._paintTransitions[name];
         return transition.declaration.interpolationFactor(input, lower, upper);
     }
 
-    getLayoutInterpolationFactor(name: string, input: number, lower: number, upper: number) {
-        const declaration = this._layoutDeclarations[name];
-        return declaration.interpolationFactor(input, lower, upper);
-    }
-
     isPaintValueFeatureConstant(name: string) {
         const transition = this._paintTransitions[name];
-
-        if (transition) {
-            return transition.declaration.isFeatureConstant;
-        } else {
-            return true;
-        }
-    }
-
-    isLayoutValueFeatureConstant(name: string) {
-        const declaration = this._layoutDeclarations[name];
-
-        if (declaration) {
-            return declaration.isFeatureConstant;
-        } else {
-            return true;
-        }
+        return !transition || transition.declaration.expression.isFeatureConstant;
     }
 
     isPaintValueZoomConstant(name: string) {
         const transition = this._paintTransitions[name];
-
-        if (transition) {
-            return transition.declaration.isZoomConstant;
-        } else {
-            return true;
-        }
-    }
-
-    isLayoutValueZoomConstant(name: string) {
-        const declaration = this._layoutDeclarations[name];
-
-        if (declaration) {
-            return declaration.isZoomConstant;
-        } else {
-            return true;
-        }
+        return !transition || transition.declaration.expression.isZoomConstant;
     }
 
     isHidden(zoom: number) {
@@ -362,12 +308,11 @@ class StyleLayer extends Evented {
     // update layout value if it's constant, or mark it as zoom-dependent
     _updateLayoutValue(name: string) {
         const declaration = this._layoutDeclarations[name];
-
-        if (declaration && declaration.isFunction) {
-            this._layoutFunctions[name] = true;
-        } else {
+        if (!declaration || (declaration.expression.isZoomConstant && declaration.expression.isFeatureConstant)) {
             delete this._layoutFunctions[name];
             this.layout[name] = this.getLayoutValue(name);
+        } else {
+            this._layoutFunctions[name] = true;
         }
     }
 
